@@ -41,11 +41,8 @@ namespace Seralyth.Managers
     {
         public static PatreonManager instance;
 
-        public void Awake()
-        {
+        public void Awake() =>
             instance = this;
-            PhotonNetwork.NetworkingClient.EventReceived += EventReceived;
-        }
 
         public readonly Dictionary<string, PatreonMembership> PatreonMembers = new Dictionary<string, PatreonMembership>();
         public readonly struct PatreonMembership
@@ -190,7 +187,7 @@ namespace Seralyth.Managers
                 {
                     case "indicator":
                         {
-                            if (args.Length > 1 && args[1] is bool enabled)
+                            if (args[0] is bool enabled)
                             {
                                 if (enabled)
                                     if (!excludedIndicators.Contains(sender.GetPlayer()))
