@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Seralyth Menu  Utilities/GameModeUtilities.cs
  * A community driven mod menu for Gorilla Tag with over 1000+ mods
  *
@@ -43,28 +43,50 @@ namespace Seralyth.Utilities
                 case GameModeType.SuperInfect:
                 case GameModeType.FreezeTag:
                 case GameModeType.PropHunt:
-                    GorillaTagManager tagManager = (GorillaTagManager)GorillaGameManager.instance;
-                    if (tagManager.isCurrentlyTag)
-                        infected.Add(tagManager.currentIt);
-                    else
-                        infected.AddRange(tagManager.currentInfected);
+                    if (GorillaGameManager.instance is GorillaTagManager tagManager)
+                    {
+                        if (tagManager.isCurrentlyTag)
+                        {
+                            if (tagManager.currentIt != null)
+                                infected.Add(tagManager.currentIt);
+                        }
+                        else if (tagManager.currentInfected != null)
+                        {
+                            infected.AddRange(tagManager.currentInfected.Where(element => element != null));
+                        }
+                    }
                     break;
+
                 case GameModeType.Ghost:
                 case GameModeType.Ambush:
-                    GorillaAmbushManager ghostManager = (GorillaAmbushManager)GorillaGameManager.instance;
-                    if (ghostManager.isCurrentlyTag)
-                        infected.Add(ghostManager.currentIt);
-                    else
-                        infected.AddRange(ghostManager.currentInfected);
+                    if (GorillaGameManager.instance is GorillaAmbushManager ghostManager)
+                    {
+                        if (ghostManager.isCurrentlyTag)
+                        {
+                            if (ghostManager.currentIt != null)
+                                infected.Add(ghostManager.currentIt);
+                        }
+                        else if (ghostManager.currentInfected != null)
+                        {
+                            infected.AddRange(ghostManager.currentInfected.Where(element => element != null));
+                        }
+                    }
                     break;
+
                 case GameModeType.Paintbrawl:
-                    GorillaPaintbrawlManager paintbrawlManager = (GorillaPaintbrawlManager)GorillaGameManager.instance;
+                    if (GorillaGameManager.instance is GorillaPaintbrawlManager paintbrawlManager && paintbrawlManager.playerLives != null)
+                    {
+                        infected.AddRange(
+                            paintbrawlManager.playerLives
+                                .Where(element => element.Value <= 0)
+                                .Select(element => PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(element.Key))
+                                .Where(dummy => dummy != null)
+                                .Select(dummy => (NetPlayer)dummy)
+                        );
 
-                    infected.AddRange(paintbrawlManager.playerLives.Where(element => element.Value <= 0).Select(element => element.Key).ToArray().Select(deadPlayer => PhotonNetwork.NetworkingClient.CurrentRoom.GetPlayer(deadPlayer)).Select(dummy => (NetPlayer)dummy));
-
-                    if (!infected.Contains(NetworkSystem.Instance.LocalPlayer))
-                        infected.Add(NetworkSystem.Instance.LocalPlayer);
-
+                        if (NetworkSystem.Instance?.LocalPlayer != null && !infected.Contains(NetworkSystem.Instance.LocalPlayer))
+                            infected.Add(NetworkSystem.Instance.LocalPlayer);
+                    }
                     break;
             }
 
@@ -73,7 +95,7 @@ namespace Seralyth.Utilities
 
         public static void AddInfected(NetPlayer plr)
         {
-            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null)
+            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null || plr == null)
                 return;
 
             switch (GorillaGameManager.instance.GameType())
@@ -83,23 +105,29 @@ namespace Seralyth.Utilities
                 case GameModeType.SuperInfect:
                 case GameModeType.FreezeTag:
                 case GameModeType.PropHunt:
-                    GorillaTagManager tagManager = (GorillaTagManager)GorillaGameManager.instance;
-                    if (tagManager.isCurrentlyTag)
-                        tagManager.ChangeCurrentIt(plr);
-                    else if (!tagManager.currentInfected.Contains(plr))
-                        tagManager.AddInfectedPlayer(plr);
+                    if (GorillaGameManager.instance is GorillaTagManager tagManager)
+                    {
+                        if (tagManager.isCurrentlyTag)
+                            tagManager.ChangeCurrentIt(plr);
+                        else if (tagManager.currentInfected != null && !tagManager.currentInfected.Contains(plr))
+                            tagManager.AddInfectedPlayer(plr);
+                    }
                     break;
+
                 case GameModeType.Ghost:
                 case GameModeType.Ambush:
-                    GorillaAmbushManager ghostManager = (GorillaAmbushManager)GorillaGameManager.instance;
-                    if (ghostManager.isCurrentlyTag)
-                        ghostManager.ChangeCurrentIt(plr);
-                    else if (!ghostManager.currentInfected.Contains(plr))
-                        ghostManager.AddInfectedPlayer(plr);
+                    if (GorillaGameManager.instance is GorillaAmbushManager ghostManager)
+                    {
+                        if (ghostManager.isCurrentlyTag)
+                            ghostManager.ChangeCurrentIt(plr);
+                        else if (ghostManager.currentInfected != null && !ghostManager.currentInfected.Contains(plr))
+                            ghostManager.AddInfectedPlayer(plr);
+                    }
                     break;
+
                 case GameModeType.Paintbrawl:
-                    GorillaPaintbrawlManager paintbrawlManager = (GorillaPaintbrawlManager)GorillaGameManager.instance;
-                    paintbrawlManager.playerLives[plr.ActorNumber] = 0;
+                    if (GorillaGameManager.instance is GorillaPaintbrawlManager paintbrawlManager && paintbrawlManager.playerLives != null)
+                        paintbrawlManager.playerLives[plr.ActorNumber] = 0;
 
                     break;
             }
@@ -107,7 +135,7 @@ namespace Seralyth.Utilities
 
         public static void RemoveInfected(NetPlayer plr)
         {
-            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null)
+            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null || plr == null)
                 return;
 
             switch (GorillaGameManager.instance.GameType())
@@ -117,33 +145,39 @@ namespace Seralyth.Utilities
                 case GameModeType.SuperInfect:
                 case GameModeType.FreezeTag:
                 case GameModeType.PropHunt:
-                    GorillaTagManager tagManager = (GorillaTagManager)GorillaGameManager.instance;
-                    switch (tagManager.isCurrentlyTag)
+                    if (GorillaGameManager.instance is GorillaTagManager tagManager)
                     {
-                        case true when tagManager.currentIt == plr:
-                            tagManager.currentIt = null;
-                            break;
-                        case false when tagManager.currentInfected.Contains(plr):
-                            tagManager.currentInfected.Remove(plr);
-                            break;
+                        switch (tagManager.isCurrentlyTag)
+                        {
+                            case true when tagManager.currentIt == plr:
+                                tagManager.currentIt = null;
+                                break;
+                            case false when tagManager.currentInfected != null && tagManager.currentInfected.Contains(plr):
+                                tagManager.currentInfected.Remove(plr);
+                                break;
+                        }
                     }
                     break;
+
                 case GameModeType.Ghost:
                 case GameModeType.Ambush:
-                    GorillaAmbushManager ghostManager = (GorillaAmbushManager)GorillaGameManager.instance;
-                    switch (ghostManager.isCurrentlyTag)
+                    if (GorillaGameManager.instance is GorillaAmbushManager ghostManager)
                     {
-                        case true when ghostManager.currentIt == plr:
-                            ghostManager.currentIt = null;
-                            break;
-                        case false when ghostManager.currentInfected.Contains(plr):
-                            ghostManager.currentInfected.Remove(plr);
-                            break;
+                        switch (ghostManager.isCurrentlyTag)
+                        {
+                            case true when ghostManager.currentIt == plr:
+                                ghostManager.currentIt = null;
+                                break;
+                            case false when ghostManager.currentInfected != null && ghostManager.currentInfected.Contains(plr):
+                                ghostManager.currentInfected.Remove(plr);
+                                break;
+                        }
                     }
                     break;
+
                 case GameModeType.Paintbrawl:
-                    GorillaPaintbrawlManager paintbrawlManager = (GorillaPaintbrawlManager)GorillaGameManager.instance;
-                    paintbrawlManager.playerLives[plr.ActorNumber] = 3;
+                    if (GorillaGameManager.instance is GorillaPaintbrawlManager paintbrawlManager && paintbrawlManager.playerLives != null)
+                        paintbrawlManager.playerLives[plr.ActorNumber] = 3;
 
                     break;
             }
@@ -151,7 +185,7 @@ namespace Seralyth.Utilities
 
         public static void AddRock(NetPlayer plr)
         {
-            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null)
+            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null || plr == null)
                 return;
 
             switch (GorillaGameManager.instance.GameType())
@@ -161,19 +195,21 @@ namespace Seralyth.Utilities
                 case GameModeType.SuperInfect:
                 case GameModeType.FreezeTag:
                 case GameModeType.PropHunt:
-                    GorillaTagManager tagManager = (GorillaTagManager)GorillaGameManager.instance;
-                    tagManager.ChangeCurrentIt(plr);
+                    if (GorillaGameManager.instance is GorillaTagManager tagManager)
+                        tagManager.ChangeCurrentIt(plr);
 
                     break;
+
                 case GameModeType.Ghost:
                 case GameModeType.Ambush:
-                    GorillaAmbushManager ghostManager = (GorillaAmbushManager)GorillaGameManager.instance;
-                    ghostManager.ChangeCurrentIt(plr);
+                    if (GorillaGameManager.instance is GorillaAmbushManager ghostManager)
+                        ghostManager.ChangeCurrentIt(plr);
 
                     break;
+
                 case GameModeType.Paintbrawl:
-                    GorillaPaintbrawlManager paintbrawlManager = (GorillaPaintbrawlManager)GorillaGameManager.instance;
-                    paintbrawlManager.playerLives[plr.ActorNumber] = 0;
+                    if (GorillaGameManager.instance is GorillaPaintbrawlManager paintbrawlManager && paintbrawlManager.playerLives != null)
+                        paintbrawlManager.playerLives[plr.ActorNumber] = 0;
 
                     break;
             }
@@ -181,7 +217,7 @@ namespace Seralyth.Utilities
 
         public static void RemoveRock(NetPlayer plr)
         {
-            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null)
+            if (!PhotonNetwork.InRoom || GorillaGameManager.instance == null || plr == null)
                 return;
 
             switch (GorillaGameManager.instance.GameType())
@@ -191,21 +227,21 @@ namespace Seralyth.Utilities
                 case GameModeType.SuperInfect:
                 case GameModeType.FreezeTag:
                 case GameModeType.PropHunt:
-                    GorillaTagManager tagManager = (GorillaTagManager)GorillaGameManager.instance;
-                    if (tagManager.currentIt == plr)
+                    if (GorillaGameManager.instance is GorillaTagManager tagManager && tagManager.currentIt == plr)
                         tagManager.ChangeCurrentIt(null);
 
                     break;
+
                 case GameModeType.Ghost:
                 case GameModeType.Ambush:
-                    GorillaAmbushManager ghostManager = (GorillaAmbushManager)GorillaGameManager.instance;
-                    if (ghostManager.currentIt == plr)
+                    if (GorillaGameManager.instance is GorillaAmbushManager ghostManager && ghostManager.currentIt == plr)
                         ghostManager.ChangeCurrentIt(null);
 
                     break;
+
                 case GameModeType.Paintbrawl:
-                    GorillaPaintbrawlManager paintbrawlManager = (GorillaPaintbrawlManager)GorillaGameManager.instance;
-                    paintbrawlManager.playerLives[plr.ActorNumber] = 3;
+                    if (GorillaGameManager.instance is GorillaPaintbrawlManager paintbrawlManager && paintbrawlManager.playerLives != null)
+                        paintbrawlManager.playerLives[plr.ActorNumber] = 3;
 
                     break;
             }
