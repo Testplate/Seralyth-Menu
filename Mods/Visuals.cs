@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Seralyth Menu  Mods/Visuals.cs
  * A community driven mod menu for Gorilla Tag with over 1000+ mods
  *
@@ -83,8 +83,16 @@ namespace Seralyth.Mods
 
             Color clr = color;
             clr.a = alpha;
-            auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
+            if (auraRenderer.material.shader.name != "GUI/Text Shader")
+                auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
             auraRenderer.material.color = clr;
+        }
+
+        public static void ClearAuraPool()
+        {
+            foreach (var aura in auraPool.Values)
+                Object.Destroy(aura);
+            auraPool.Clear();
         }
 
         public static readonly Dictionary<long, GameObject> cubePool = new Dictionary<long, GameObject>();
@@ -114,8 +122,16 @@ namespace Seralyth.Mods
 
             Color clr = color;
             clr.a = alpha;
-            auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
+            if (auraRenderer.material.shader.name != "GUI/Text Shader")
+                auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
             auraRenderer.material.color = clr;
+        }
+
+        public static void ClearCubePool()
+        {
+            foreach (var cube in cubePool.Values)
+                Object.Destroy(cube);
+            cubePool.Clear();
         }
 
         public static readonly Dictionary<long, GameObject> cylinderPool = new Dictionary<long, GameObject>();
@@ -144,8 +160,16 @@ namespace Seralyth.Mods
 
             Color clr = color;
             clr.a = alpha;
-            auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
+            if (auraRenderer.material.shader.name != "GUI/Text Shader")
+                auraRenderer.material.shader = Shader.Find("GUI/Text Shader");
             auraRenderer.material.color = clr;
+        }
+
+        public static void ClearCylinderPool()
+        {
+            foreach (var cylinder in cylinderPool.Values)
+                Object.Destroy(cylinder);
+            cylinderPool.Clear();
         }
 
         public static GameObject VisualizeAuraObject(Vector3 position, float range, Color color, float alpha = 0.25f)
@@ -517,7 +541,7 @@ namespace Seralyth.Mods
                     };
 
                     _infoSpriteAsset.spriteInfoList = new List<TMP_Sprite>();
-                    Traverse.Create(_infoSpriteAsset).Field("m_Version").SetValue("1.1.0"); // TextMeshPro kills itself unless this is set.
+                    Traverse.Create(_infoSpriteAsset).Field("m_Version").SetValue("1.1.0");
 
                     _infoSpriteAsset.spriteGlyphTable.Clear();
                     for (int i = 0; i < spriteDataList.Count; i++)
@@ -683,6 +707,14 @@ namespace Seralyth.Mods
             if (Vector3.Distance(GorillaTagger.Instance.bodyCollider.transform.position, position) > 20f)
                 return;
 
+            if (handTaps.TryGetValue(rig, out var data))
+            {
+                if (data[3] != null)
+                {
+                    Object.Destroy((GameObject)data[3]);
+                }
+            }
+
             handTaps[rig] = new object[]
             {
                 rig,
@@ -710,7 +742,7 @@ namespace Seralyth.Mods
                 float timestamp = (float)handTapData[2];
                 GameObject gameObject = (GameObject)handTapData[3];
 
-                if (Time.time > timestamp + 1f)
+                if (Time.time > timestamp + 3f)
                 {
                     toRemove.Add(rig);
                     continue;
@@ -759,29 +791,40 @@ namespace Seralyth.Mods
 
                 Renderer renderer = gameObject.GetComponent<Renderer>();
 
-                Vector3 toTarget = position - Camera.main.transform.position;
+                Camera mainCam = GorillaTagger.Instance.mainCamera.GetComponent<Camera>();
+                Vector3 toTarget = position - mainCam.transform.position;
+                if (toTarget.sqrMagnitude < 0.001f) toTarget = mainCam.transform.forward;
                 toTarget.Normalize();
 
-                Vector3 camForward = Camera.main.transform.forward.normalized;
-                Vector3 camRight = Camera.main.transform.right.normalized;
-                Vector3 camUp = Camera.main.transform.up.normalized;
+                Vector3 camForward = mainCam.transform.forward;
+                Vector3 camRight = mainCam.transform.right;
+                Vector3 camUp = mainCam.transform.up;
 
+                float dotForward = Vector3.Dot(toTarget, camForward);
                 float x = Vector3.Dot(toTarget, camRight);
                 float y = Vector3.Dot(toTarget, camUp);
+
+                if (dotForward < 0)
+                {
+                    Vector2 dir = new Vector2(x, y);
+                    if (dir.sqrMagnitude < 0.001f) dir = Vector2.right;
+                    dir = dir.normalized;
+                    x = dir.x;
+                    y = dir.y;
+                }
 
                 Vector2 dirInPlane = new Vector2(x, y).normalized;
 
                 float ringRadius = 0.2f;
                 Vector3 ringOffset = (camRight * dirInPlane.x + camUp * dirInPlane.y) * ringRadius;
-                Vector3 ringCenter = Camera.main.transform.position + camForward * 0.5f;
+                Vector3 ringCenter = mainCam.transform.position + camForward * 0.5f;
 
                 Vector3 finalPos = ringCenter + ringOffset;
                 gameObject.transform.position = finalPos;
 
-                gameObject.transform.rotation = Quaternion.LookRotation(finalPos - Camera.main.transform.position, -Camera.main.transform.up);
-                Camera.main.transform.forward.X_Z();
+                gameObject.transform.rotation = Quaternion.LookRotation(finalPos - mainCam.transform.position, camUp);
 
-                float t = Mathf.Lerp(1f, 0f, Time.time - timestamp);
+                float t = Mathf.Lerp(1f, 0f, (Time.time - timestamp) / 3f);
 
                 Color color = renderer.material.color;
                 color.a = Mathf.Clamp01(t);
@@ -855,18 +898,6 @@ namespace Seralyth.Mods
             return 0.1f + frames.Count * 0.1f;
         }
 
-        /// <summary>
-        /// Displays a label with the specified text and color at the position of the player's left or right hand. If a
-        /// label with the given code name does not exist, a new label is created.
-        /// </summary>
-        /// <remarks>If the label already exists, its properties are updated; otherwise, a new label is
-        /// created and added. The label is positioned and oriented to face the main camera, and its scale may be
-        /// adjusted based on the player's scale. The label is always set active when this method is called.</remarks>
-        /// <param name="codeName">The unique identifier for the label. If a label with this code name does not exist, a new label is created.</param>
-        /// <param name="leftHand">Indicates whether the label should be positioned at the left hand (<see langword="true"/>) or right hand
-        /// (<see langword="false"/>) of the player.</param>
-        /// <param name="text">The text content to display on the label.</param>
-        /// <param name="color">The color to apply to the label's text.</param>
         public static void GetLabel(string codeName, bool leftHand, string text, Color color)
         {
             if (!labelDictionary.TryGetValue(codeName, out GameObject go))
@@ -1391,10 +1422,7 @@ namespace Seralyth.Mods
 
             hitboxESP.Clear();
         }
-
-        // TODO: Fix the other players' slingshot trajectory prediction.
-        // TODO: Fix gravity of slingshot prediction
-
+        
         public static readonly Dictionary<SlingshotProjectile, LineRenderer> trajectoryPool = new Dictionary<SlingshotProjectile, LineRenderer>();
         public static LineRenderer localTrajectoryLine;
 
@@ -3013,7 +3041,7 @@ namespace Seralyth.Mods
 
                             GameObject infoTag = new GameObject("infotag");
                             infoTag.transform.parent = textContainer.transform;
-                            infoTag.transform.localPosition = new Vector3(0f, 0.5f, 0f); // change the y to make the info tag farther or closer to the nametag 
+                            infoTag.transform.localPosition = new Vector3(0f, 0.5f, 0f);
                             infoTag.transform.localScale = Vector3.one;
                             TextMeshPro infoMesh = infoTag.AddComponent<TextMeshPro>();
                             infoMesh.fontSize = 2.4f;
@@ -3036,7 +3064,7 @@ namespace Seralyth.Mods
 
                             GameObject infoBg = new GameObject("infobg");
                             infoBg.transform.parent = bgContainer.transform;
-                            infoBg.transform.localPosition = new Vector3(0f, 0.5f, 0f);  // change the y to make the info tag farther or closer to the nametag 
+                            infoBg.transform.localPosition = new Vector3(0f, 0.5f, 0f); 
                             infoBg.transform.localScale = Vector3.one;
                             infoBg.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
                             Object.Destroy(infoBg.GetComponent<Collider>());
@@ -3080,22 +3108,19 @@ namespace Seralyth.Mods
 
                         string tagText = $"{(vrrig.GetTruePing() > 2500 ? "[<color=red>Crashed</color>] | " : "")}[<color=#00FFFF>{GetCreationDate(vrrig.GetPlayer().UserId, null, "MMM dd, yyyy")}</color>] | [{GetPrettyPlatform(vrrig)}] | [Ping: {GetPrettyPing(vrrig)}] | [FPS: {GetPrettyFPS(vrrig)}]{(vrrig.GetPlayer().IsMasterClient ? " | [<color=#00FFFF>Master</color>]" : "")}";
 
+                        TextMeshPro tm = infoTextTr.GetComponent<TextMeshPro>();
                         if (NameTagOptimize())
                         {
-                            infoTextTr.GetComponent<TextMeshPro>().SafeSetText(tagText);
-                            infoTextTr.GetComponent<TextMeshPro>().SafeSetFontStyle(activeFontStyle);
-                            infoTextTr.GetComponent<TextMeshPro>().SafeSetFont(activeFont);
+                            tm.SafeSetText(tagText);
+                            tm.SafeSetFontStyle(activeFontStyle);
+                            tm.SafeSetFont(activeFont);
                         }
-
-
-                        TextMeshPro tm = infoTextTr.GetComponent<TextMeshPro>();
                         if (nameTagChams)
                             tm.Chams();
                         string plainText = System.Text.RegularExpressions.Regex.Replace(tagText, "<.*?>", string.Empty);
                         float textWidth = tm.GetPreferredValues(plainText).x * 0.65f;
                         float bgHeight = textWidth + 0.15f;
 
-                        // nametag part inherits the player color
                         string playerName = CleanPlayerName(vrrig.GetPlayer().NickName);
                         TextMeshPro nameTm = nameTextTr.GetComponent<TextMeshPro>();
 
@@ -3114,7 +3139,9 @@ namespace Seralyth.Mods
 
                         Color nameBgColor = DarkenColor(vrrig.playerColor);
                         nameBgColor.a = 0.6f;
-                        nameBgTr.GetComponent<LineRenderer>().material.color = nameBgColor;
+                        
+                        LineRenderer nameBgRenderer = nameBgTr.GetComponent<LineRenderer>();
+                        nameBgRenderer.material.color = nameBgColor;
 
                         float finalScale = 0.15f * vrrig.scaleFactor;
                         textCont.transform.localScale = new Vector3(finalScale, finalScale, finalScale);
@@ -5497,8 +5524,7 @@ namespace Seralyth.Mods
             breadcrumbs.Clear();
         }
 
-        // Thanks DrPerky for rewriting visual mods <@427495360517111809>
-        public static bool DoPerformanceCheck()
+public static bool DoPerformanceCheck()
         {
             if (PerformanceVisuals)
             {
@@ -5583,7 +5609,6 @@ namespace Seralyth.Mods
             } catch { }       
         }
 
-        // Tracers
         public static void CasualTracers()
         {
             if (DoPerformanceCheck())
@@ -5774,7 +5799,6 @@ namespace Seralyth.Mods
             }
         }
 
-        // Beacons
         public static void CasualBeacons()
         {
             if (DoPerformanceCheck())
@@ -5941,8 +5965,6 @@ namespace Seralyth.Mods
                 }
             }
         }
-
-        // Distance ESP
         public static void CasualDistanceESP()
         {
             if (DoPerformanceCheck())
@@ -5959,7 +5981,7 @@ namespace Seralyth.Mods
 
             foreach (VRRig playerRig in VRRigCache.ActiveRigs)
             {
-                if (playerRig.isLocal) // Skip local player
+                if (playerRig.isLocal)
                     continue;
 
                 Color tagColor = followMenuTheme ? textColors[0].GetCurrentColor() : Color.white;
@@ -5981,7 +6003,7 @@ namespace Seralyth.Mods
 
                 _ = $"{Vector3.Distance(Camera.main.transform.position, playerRig.transform.position):F1}m";
 
-                foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>()) //background color
+                foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>())
                 {
                     if (transform.gameObject.name == "bg")
                     {
@@ -6011,7 +6033,7 @@ namespace Seralyth.Mods
 
             foreach (VRRig playerRig in VRRigCache.ActiveRigs)
             {
-                if (playerRig.isLocal) //skip local player
+                if (playerRig.isLocal) // thanks to testplate for rewriting
                     continue;
 
                 Color tagColor = followMenuTheme ? textColors[0].GetCurrentColor() : Color.white;
@@ -6049,7 +6071,7 @@ namespace Seralyth.Mods
 
                 _ = $"{Vector3.Distance(Camera.main.transform.position, playerRig.transform.position):F1}m";
 
-                foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>()) //background color
+                foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>())
                 {
                     if (transform.gameObject.name == "bg")
                     {
@@ -6066,8 +6088,6 @@ namespace Seralyth.Mods
             if (DoPerformanceCheck())
                 return;
 
-            // Sanity checks, dont remove these
-
             if (GorillaGameManager.instance == null)
                 return;
 
@@ -6079,7 +6099,6 @@ namespace Seralyth.Mods
             if (sillyComputer == null)
                 return;
 
-            // Cache these here so your not finding the values from Buttons.GetIndex every call (Buttons.GetIndex is fucking slow)
             bool followMenuTheme = Buttons.GetIndex("Follow Menu Theme").enabled;
             bool transparentTheme = Buttons.GetIndex("Transparent Theme").enabled;
             bool hiddenOnCamera = Buttons.GetIndex("Hidden on Camera").enabled;
@@ -6088,11 +6107,9 @@ namespace Seralyth.Mods
 
             NetPlayer currentTarget = sillyComputer.GetTargetOf(PhotonNetwork.LocalPlayer);
 
-            // Color bgColor = backgroundColor.GetCurrentColor(); //dont need to call this function twice, just use a variable
-
             foreach (var playerRig in VRRigCache.ActiveRigs.Where(playerRig => !playerRig.isLocal))
             {
-                if (GetPlayerFromVRRig(playerRig) == currentTarget) // Use ID for quick comparison
+                if (GetPlayerFromVRRig(playerRig) == currentTarget)
                 {
                     Color tagColor = followMenuTheme ? textColors[0].GetCurrentColor() : Color.white;
                     Color backgroundColor = playerRig.playerColor;
@@ -6113,7 +6130,7 @@ namespace Seralyth.Mods
 
                     _ = $"{Vector3.Distance(Camera.main.transform.position, playerRig.transform.position):F1}m";
 
-                    foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>()) // Background color
+                    foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>()) 
                     {
                         if (transform.gameObject.name == "bg")
                         {
@@ -6143,7 +6160,7 @@ namespace Seralyth.Mods
 
                     _ = $"{Vector3.Distance(Camera.main.transform.position, playerRig.transform.position):F1}m";
 
-                    foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>()) // Background color
+                    foreach (Transform transform in nameTagText.gameObject.GetComponentsInChildren<Transform>())
                     {
                         if (transform.gameObject.name == "bg")
                         {
@@ -6154,8 +6171,6 @@ namespace Seralyth.Mods
                 }
             }
         }
-
-        // Cache backend
 
         private static readonly List<TextMeshPro> nameTagPool = new List<TextMeshPro>();
 
@@ -6170,18 +6185,21 @@ namespace Seralyth.Mods
 
             TextMeshPro finalTextMeshPro = null;
 
-            foreach (var TextMeshPro in nameTagPool.Where(TextMeshPro => finalTextMeshPro == null && !TextMeshPro.gameObject.activeInHierarchy))
+            for (int i = 0; i < nameTagPool.Count; i++)
             {
-                TextMeshPro.gameObject.SetActive(true);
-                TextMeshPro.gameObject.transform.LookAt(Camera.main.transform.position);
-                TextMeshPro.gameObject.transform.Rotate(0f, 180f, 0f);
+                TextMeshPro tm = nameTagPool[i];
+                if (!tm.gameObject.activeInHierarchy)
+                {
+                    tm.gameObject.SetActive(true);
+                    tm.gameObject.transform.LookAt(Camera.main.transform.position);
+                    tm.gameObject.transform.Rotate(0f, 180f, 0f);
 
-                TextMeshPro.SafeSetFontStyle(activeFontStyle);
-                TextMeshPro.SafeSetFont(activeFont);
+                    tm.SafeSetFontStyle(activeFontStyle);
+                    tm.SafeSetFont(activeFont);
 
-                // Update font style of outline here
-
-                finalTextMeshPro = TextMeshPro;
+                    finalTextMeshPro = tm;
+                    break;
+                }
             }
 
             if (finalTextMeshPro == null)
@@ -6218,13 +6236,13 @@ namespace Seralyth.Mods
                 finalTextMeshPro = newMesh;
             }
 
-            finalTextMeshPro.gameObject.layer = hideOnCamera ? 19 : // What does 19 actually do?
+            finalTextMeshPro.gameObject.layer = hideOnCamera ? 19 :
                 nameTagHolder.layer;
 
             return finalTextMeshPro;
         }
 
-        public static void ClearNameTagPool(bool destroy = false) // Set destroy when you disable a feature that needs a lot of nameTags
+        public static void ClearNameTagPool(bool destroy = false)
         {
             if (DoPerformanceCheck())
                 return;
@@ -6291,7 +6309,7 @@ namespace Seralyth.Mods
             return finalRender;
         }
 
-        public static void ClearLinePool(bool destroy = false) // Set destroy when you disable a feature that needs a lot of lines
+        public static void ClearLinePool(bool destroy = false) 
         {
             if (DoPerformanceCheck())
                 return;
