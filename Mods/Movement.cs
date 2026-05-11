@@ -2325,32 +2325,30 @@ namespace Seralyth.Mods
 
         private static Vector3 walkPos;
         private static Vector3 walkNormal;
-
+        
         public static int wallWalkStrengthIndex = 2;
         private static float wallWalkStrength = 9.81f;
-
+        
         public static bool leftWallWalk;
         public static bool bothWallWalk;
-
+        
+        private static readonly float[] strengthAmounts = { 2f, 5f, 9.81f, 15f, 50f };
+        private static readonly string[] strengthNames = { "Very Weak", "Weak", "Normal", "Strong", "Very Strong" };
+        
         public static void ChangeWallWalkStrength(bool positive = true)
         {
-            float[] strengthAmounts = { 2f, 5f, 9.81f, 15f, 50f };
-            string[] strengthNames = { "Very Weak", "Weak", "Normal", "Strong", "Very Strong" };
-
-            if (positive)
-                wallWalkStrengthIndex++;
-            else
-                wallWalkStrengthIndex--;
-
-            wallWalkStrengthIndex %= strengthAmounts.Length;
-            if (wallWalkStrengthIndex < 0)
-                wallWalkStrengthIndex = strengthAmounts.Length - 1;
-
+            int length = strengthAmounts.Length;
+        
+            wallWalkStrengthIndex += positive ? 1 : -1;
+        
+            wallWalkStrengthIndex = (wallWalkStrengthIndex % length + length) % length;
+        
             wallWalkStrength = strengthAmounts[wallWalkStrengthIndex];
-
-            Buttons.GetIndex("Change Wall Walk Strength").overlapText = "Change Wall Walk Strength <color=grey>[</color><color=green>" + strengthNames[wallWalkStrengthIndex] + "</color><color=grey>]</color>";
+        
+            Buttons.GetIndex("Change Wall Walk Strength").overlapText =
+                $"Change Wall Walk Strength <color=grey>[</color><color=green>{strengthNames[wallWalkStrengthIndex]}</color><color=grey>]</color>";
         }
-
+        
         public static void WallWalk()
         {
             if (GTPlayer.Instance.IsHandTouching(true) || GTPlayer.Instance.IsHandTouching(false))
@@ -2359,37 +2357,36 @@ namespace Seralyth.Mods
                 walkPos = ray.point;
                 walkNormal = ray.normal;
             }
-
+        
             bool wallWalkKey =
                 bothWallWalk ? leftGrab || rightGrab :
                 leftWallWalk ? leftGrab : rightGrab;
-
+        
             if (walkPos != Vector3.zero && wallWalkKey)
             {
                 GorillaTagger.Instance.rigidbody.AddForce(walkNormal * -wallWalkStrength, ForceMode.Acceleration);
                 ZeroGravity();
             }
         }
-
-        // Credits to Intelligence for the idea (You can't code a mod menu, but you are insanely good at making competitive cheats)
+        
         public static void LegitimateWallWalk()
         {
             float range = 0.2f;
             float power = -2f;
-
+            // man this is cyrus's legit wall walk source code leak from 2023/2024
             if (leftGrab && (leftWallWalk || bothHands))
             {
                 RaycastHit ray = GTPlayer.Instance.lastHitInfoHand;
-
-                if (Physics.Raycast(ControllerUtilities.GetTrueLeftHand().position, -ray.normal, out var Ray, range, GTPlayer.Instance.locomotionEnabledLayers))
+        
+                if (Physics.Raycast(ControllerUtilities.GetTrueLeftHand().position, -ray.normal, out RaycastHit Ray, range, GTPlayer.Instance.locomotionEnabledLayers))
                     GorillaTagger.Instance.rigidbody.AddForce(Ray.normal * power, ForceMode.Acceleration);
             }
-
+        
             if (rightGrab && (!leftWallWalk || bothHands))
             {
                 RaycastHit ray = GTPlayer.Instance.lastHitInfoHand;
-
-                if (Physics.Raycast(ControllerUtilities.GetTrueRightHand().position, -ray.normal, out var Ray, range, GTPlayer.Instance.locomotionEnabledLayers))
+        
+                if (Physics.Raycast(ControllerUtilities.GetTrueRightHand().position, -ray.normal, out RaycastHit Ray, range, GTPlayer.Instance.locomotionEnabledLayers))
                     GorillaTagger.Instance.rigidbody.AddForce(Ray.normal * power, ForceMode.Acceleration);
             }
         }
