@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Seralyth Menu  Classes/Mods/VirtualStumpAd.cs
  * A community driven mod menu for Gorilla Tag with over 1000+ mods
  *
@@ -30,7 +30,6 @@ namespace Seralyth.Classes.Mods
     public class VirtualStumpAd : MonoBehaviour
     {
         public static VirtualStumpAd Instance { get; private set; }
-
         public static SpriteRenderer SpriteRenderer { get; private set; }
 
         private bool hasSetupFeaturedMapVideo;
@@ -46,47 +45,25 @@ namespace Seralyth.Classes.Mods
 
         private SpriteRendererData cachedSpriteRendererData;
 
+        private Material cachedVideoMaterial;
+        private RenderTexture cachedRenderTexture;
 
         private void Awake() => Instance = this;
 
-        private void OnDisable()
-        {
-            hasSetupFeaturedMapVideo = false;
-            TextMeshPro featuredMapText = MapInfoText.GetComponent<TextMeshPro>();
-            featuredMapText.text = oldText;
-            MapInfoText.SetActive(false);
-            LoadingText.SetActive(true);
-
-            foreach (Transform child in DisplayTextObj.transform)
-                if (child.name.ToLower().EndsWith("tmp"))
-                    child.gameObject.SetActive(!child.gameObject.activeSelf);
-
-            GameObject featuredMapImage = FeaturedMaps.transform.Find("FeaturedMapImage")?.gameObject;
-
-            if (featuredMapImage == null)
-                return;
-
-            Destroy(featuredMapImage.GetOrAddComponent<MeshFilter>());
-            Destroy(featuredMapImage.GetOrAddComponent<MeshRenderer>());
-
-            featuredMapImage.transform.localScale = oldLocalScale;
-            Destroy(featuredMapImage.GetOrAddComponent<VideoPlayer>());
-
-            ApplySpriteRenderer(featuredMapImage);
-        }
-
         private void Update()
         {
-            if (hasSetupFeaturedMapVideo && !videoPlayer.isPlaying && videoPlayer.enabled)
+            if (hasSetupFeaturedMapVideo && videoPlayer != null)
             {
-                if (!videoPlayer.isLooping)
-                    videoPlayer.isLooping = true;
-                videoPlayer.Play();
-            }
+                if (videoPlayer.enabled && !videoPlayer.isPlaying)
+                {
+                    if (!videoPlayer.isLooping)
+                        videoPlayer.isLooping = true;
 
+                    videoPlayer.Play();
+                }
 
-            if (hasSetupFeaturedMapVideo)
                 return;
+            }
 
             LoadingText = GetObject("Environment Objects/LocalObjects_Prefab/TreeRoom/LoadingText");
             MapInfoText = GetObject("Environment Objects/LocalObjects_Prefab/TreeRoom/MapInfo_TMP");
@@ -94,16 +71,20 @@ namespace Seralyth.Classes.Mods
             DisplayTextObj = GetObject("Environment Objects/LocalObjects_Prefab/TreeRoom/ModIOFeaturedMapsDisplay/DisplayText");
 
             if (DisplayTextObj != null)
+            {
                 foreach (Transform child in DisplayTextObj.transform)
+                {
                     if (child.name.ToLower().EndsWith("tmp"))
                         child.gameObject.SetActive(!child.gameObject.activeSelf);
+                }
+            }
 
             if (MapInfoText == null || FeaturedMaps == null)
                 return;
 
             try
             {
-                TextMeshPro featuredMapText = MapInfoText.GetComponent<TextMeshPro>();
+                var featuredMapText = MapInfoText.GetComponent<TextMeshPro>();
                 if (featuredMapText != null)
                 {
                     oldText = featuredMapText.text;
@@ -114,7 +95,6 @@ namespace Seralyth.Classes.Mods
                 LoadingText?.SetActive(false);
 
                 GameObject featuredMapImage = FeaturedMaps.transform.Find("FeaturedMapImage")?.gameObject;
-
                 if (featuredMapImage == null)
                     return;
 
@@ -125,28 +105,74 @@ namespace Seralyth.Classes.Mods
 
                 MeshRenderer mr = featuredMapImage.GetOrAddComponent<MeshRenderer>();
 
-                Material videoMat = new Material(Shader.Find("Unlit/Texture"));
-                mr.material = videoMat;
+                if (cachedVideoMaterial == null)
+                    cachedVideoMaterial = new Material(Shader.Find("Unlit/Texture"));
+
+                mr.material = cachedVideoMaterial;
 
                 videoPlayer = featuredMapImage.GetOrAddComponent<VideoPlayer>();
                 videoPlayer.audioOutputMode = VideoAudioOutputMode.None;
                 videoPlayer.url = $"{PluginInfo.ServerResourcePath}/Videos/vstump-video.mp4";
 
-                RenderTexture rt = new RenderTexture(512, 512, 0);
-                videoPlayer.targetTexture = rt;
-                mr.material.mainTexture = rt;
+                if (cachedRenderTexture == null)
+                    cachedRenderTexture = new RenderTexture(512, 512, 0);
 
-                if (oldLocalScale == Vector3.zero) oldLocalScale = featuredMapImage.transform.localScale;
+                videoPlayer.targetTexture = cachedRenderTexture;
+                mr.material.mainTexture = cachedRenderTexture;
+
+                if (oldLocalScale == Vector3.zero)
+                    oldLocalScale = featuredMapImage.transform.localScale;
+
                 featuredMapImage.transform.localScale = new Vector3(0.845f, 0.445f, 1f);
 
                 videoPlayer.isLooping = true;
                 videoPlayer.Play();
 
                 featuredMapImage.SetActive(true);
-
                 hasSetupFeaturedMapVideo = true;
             }
-            catch { }
+            catch
+            {
+                // uhm hi....
+            }
+        }
+
+        private void OnDisable()
+        {
+            hasSetupFeaturedMapVideo = false;
+
+            if (MapInfoText != null)
+            {
+                TextMeshPro featuredMapText = MapInfoText.GetComponent<TextMeshPro>();
+                if (featuredMapText != null)
+                    featuredMapText.text = oldText;
+
+                MapInfoText.SetActive(false);
+            }
+
+            LoadingText?.SetActive(true);
+
+            if (DisplayTextObj != null)
+            {
+                foreach (Transform child in DisplayTextObj.transform)
+                {
+                    if (child.name.ToLower().EndsWith("tmp"))
+                        child.gameObject.SetActive(!child.gameObject.activeSelf);
+                }
+            }
+
+            GameObject featuredMapImage = FeaturedMaps?.transform.Find("FeaturedMapImage")?.gameObject;
+            if (featuredMapImage == null)
+                return;
+
+            Destroy(featuredMapImage.GetComponent<MeshFilter>());
+            Destroy(featuredMapImage.GetComponent<MeshRenderer>());
+
+            featuredMapImage.transform.localScale = oldLocalScale;
+
+            Destroy(featuredMapImage.GetComponent<VideoPlayer>());
+
+            ApplySpriteRenderer(featuredMapImage);
         }
 
         private void CacheAndRemoveSpriteRenderer(GameObject target)
