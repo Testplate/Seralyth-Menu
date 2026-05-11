@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Seralyth Menu  Extensions/PlayerExtensions.cs
  * A community driven mod menu for Gorilla Tag with over 1000+ mods
  *
@@ -24,7 +24,6 @@ using GorillaLocomotion;
 using Photon.Pun;
 using Photon.Realtime;
 using Seralyth.Utilities;
-using System.Linq;
 using UnityEngine;
 
 namespace Seralyth.Extensions
@@ -32,34 +31,57 @@ namespace Seralyth.Extensions
     public static class PlayerExtensions
     {
         #region NetPlayer
-        public static Player GetPlayer(this NetPlayer self) =>
-            RigUtilities.NetPlayerToPlayer(self);
 
-        public static VRRig VRRig(this NetPlayer self) =>
-            RigUtilities.GetVRRigFromPlayer(self);
+        public static Player GetPlayer(this NetPlayer player) =>
+            player != null ? RigUtilities.NetPlayerToPlayer(player) : null;
 
-        public static bool InRoom(this NetPlayer self) =>
-            NetworkSystem.Instance.AllNetPlayers.Contains(self);
+        public static VRRig VRRig(this NetPlayer player) =>
+            player != null ? RigUtilities.GetVRRigFromPlayer(player) : null;
 
-        public static Hashtable GetCustomProperties(this NetPlayer self) =>
-            self.GetPlayer().CustomProperties;
+        public static bool InRoom(this NetPlayer player) =>
+            player != null &&
+            NetworkSystem.Instance != null &&
+            NetworkSystem.Instance.AllNetPlayers != null &&
+            NetworkSystem.Instance.AllNetPlayers.Contains(player);
+
+        public static Hashtable GetCustomProperties(this NetPlayer player)
+        {
+            var photonPlayer = player?.GetPlayer();
+            return photonPlayer?.CustomProperties ?? new Hashtable();
+        }
+
         #endregion
 
         #region Player
-        public static VRRig VRRig(this Player self) =>
-            RigUtilities.GetVRRigFromPlayer(self);
 
-        public static bool InRoom(this Player self) =>
-            PhotonNetwork.PlayerList.Contains(self);
+        public static VRRig VRRig(this Player player) =>
+            player != null ? RigUtilities.GetVRRigFromPlayer(player) : null;
+
+        public static bool InRoom(this Player player) =>
+            player != null &&
+            PhotonNetwork.InRoom &&
+            PhotonNetwork.PlayerList != null &&
+            PhotonNetwork.PlayerList.Contains(player);
 
         #endregion
 
         #region GorillaTagger
+
         public static bool IsGrounded(this GorillaTagger tagger, float maxDistance = 0.15f)
         {
-            return
-                Physics.Raycast(tagger.bodyCollider.transform.position - new Vector3(0f, 0.2f, 0f), Vector3.down, maxDistance, GTPlayer.Instance.locomotionEnabledLayers);
+            if (tagger == null || tagger.bodyCollider == null || GTPlayer.Instance == null)
+                return false;
+
+            Vector3 origin = tagger.bodyCollider.transform.position - new Vector3(0f, 0.2f, 0f);
+
+            return Physics.Raycast(
+                origin,
+                Vector3.down,
+                maxDistance,
+                GTPlayer.Instance.locomotionEnabledLayers
+            );
         }
+
         #endregion
     }
 }
